@@ -1,10 +1,15 @@
 #pragma once
 
 #include "ProfilerTask.h"
-#include "imgui.h"
+#include "deps/imgui/imgui.h"
+#include "glm/glm.hpp"
 #include <array>
 #include <map>
 #include <vector>
+#include <algorithm>
+#include <ostream>
+#include <sstream>
+#include <chrono>
 
 namespace ImGuiUtils
 {
@@ -78,10 +83,6 @@ namespace ImGuiUtils
       ImGui::Dummy(ImVec2(float(graphWidth + legendWidth), float(height)));
     }
 
-    /*void bla()
-    {
-
-    }*/
   private:
     void RebuildTaskStats(size_t endFrame, size_t framesCount)
     {
@@ -115,6 +116,7 @@ namespace ImGuiUtils
         taskStats[statIndex].priorityOrder = statNumber;
       }
     }
+
     void RenderGraph(ImDrawList *drawList, glm::vec2 graphPos, glm::vec2 graphSize, size_t frameIndexOffset, float maxFrameTime)
     {
       Rect(drawList, graphPos, graphPos + graphSize, 0xffffffff, false);
@@ -139,6 +141,7 @@ namespace ImGuiUtils
         }
       }
     }
+
     void RenderLegend(ImDrawList *drawList, glm::vec2 legendPos, glm::vec2 legendSize, size_t frameIndexOffset, float maxFrameTime)
     {
       float markerLeftRectMargin = 3.0f;
@@ -148,7 +151,7 @@ namespace ImGuiUtils
       float markerRigthRectMargin = 3.0f;
       float markerRightRectHeight = 10.0f;
       float markerRightRectSpacing = 4.0f;
-      float nameOffset = 30.0f;
+      float nameOffset = 70.0f;
       glm::vec2 textMargin = glm::vec2(5.0f, -3.0f);
 
       auto &currFrame = frames[(currFrameIndex - frameIndexOffset - 1 + 2 * frames.size()) % frames.size()];
@@ -191,73 +194,12 @@ namespace ImGuiUtils
 
         float taskTimeMs = float(task.endTime - task.startTime);
         std::ostringstream timeText;
-        timeText.precision(2);
-        timeText << std::fixed << std::string("[") << (taskTimeMs * 1000.0f);
+        timeText.precision(3);
+        timeText << std::fixed << std::string("[") << taskTimeMs << std::string("ms] ");
 
         Text(drawList, markerRightRectMax + textMargin, textColor, timeText.str().c_str());
-        Text(drawList, markerRightRectMax + textMargin + glm::vec2(nameOffset, 0.0f), textColor, (std::string("ms] ") + task.name).c_str());
+        Text(drawList, markerRightRectMax + textMargin + glm::vec2(nameOffset, 0.0f), textColor, task.name.c_str());
       }
-
-      /*
-      struct PriorityEntry
-      {
-        bool isUsed;
-        legit::ProfilerTask task;
-      };
-      std::map<std::string, PriorityEntry> priorityEntries;
-      for (auto priorityTask : priorityTasks)
-      {
-        PriorityEntry entry;
-        entry.task = frames[priorityTask.frameIndex].tasks[priorityTask.taskIndex];
-        entry.isUsed = false;
-        priorityEntries[entry.task.name] = entry;
-      }
-      size_t shownTasksCount = 0;
-      for (size_t taskIndex = 0; taskIndex < currFrame.tasks.size(); taskIndex++)
-      {
-        auto &task = currFrame.tasks[taskIndex];
-        auto it = priorityEntries.find(task.name);
-        if (it != priorityEntries.end() && !it->second.isUsed)
-        {
-          it->second.isUsed = true;
-
-          float taskStartHeight = (float(task.startTime) / maxFrameTime) * legendSize.y;
-          float taskEndHeight = (float(task.endTime) / maxFrameTime) * legendSize.y;
-
-
-          glm::vec2 markerLeftRectMin = legendPos + glm::vec2(markerLeftRectMargin, legendSize.y);
-          glm::vec2 markerLeftRectMax = markerLeftRectMin + glm::vec2(markerLeftRectWidth, 0.0f);
-          markerLeftRectMin.y -= taskStartHeight;
-          markerLeftRectMax.y -= taskEndHeight;
-
-          glm::vec2 markerRightRectMin = legendPos + glm::vec2(markerLeftRectMargin + markerLeftRectWidth + markerMidWidth, legendSize.y - markerRigthRectMargin - (markerRightRectHeight + markerRightRectSpacing) * shownTasksCount);
-          glm::vec2 markerRightRectMax = markerRightRectMin + glm::vec2(markerRightRectWidth, -markerRightRectHeight);
-          RenderTaskMarker(drawList, markerLeftRectMin, markerLeftRectMax, markerRightRectMin, markerRightRectMax, task.color);
-
-          uint32_t textColor = legit::Colors::imguiText;// task.color;
-
-          float taskTimeMs = float(task.endTime - task.startTime);
-          std::ostringstream timeText;
-          timeText.precision(2);
-          timeText << std::fixed << std::string("[") << (taskTimeMs * 1000.0f);
-
-          Text(drawList, markerRightRectMax + textMargin, textColor, timeText.str().c_str());
-          Text(drawList, markerRightRectMax + textMargin + glm::vec2(nameOffset, 0.0f), textColor, (std::string("ms] ") + task.name).c_str());
-          shownTasksCount++;
-        }
-      }*/
-
-      /*for (size_t priorityTaskIndex = 0; priorityTaskIndex < priorityTasks.size(); priorityTaskIndex++)
-      {
-        auto &priorityTask = priorityTasks[priorityTaskIndex];
-        auto &globalTask = frames[priorityTask.frameIndex].tasks[priorityTask.taskIndex];
-
-        size_t lastFrameTaskIndex = currFrame.FindTask(globalTask.name);
-
-        glm::vec2 taskPos = legendPos + marginSpacing + glm::vec2(0.0f, markerHeight) + glm::vec2(0.0f, (markerHeight + itemSpacing) * priorityTaskIndex);
-        Rect(drawList, taskPos, taskPos + glm::vec2(markerHeight, -markerHeight), task.color, true);
-        Text(drawList, taskPos + textOffset, 0xffffffff, task.name.c_str());
-      }*/
     }
 
     static void Rect(ImDrawList *drawList, glm::vec2 minPoint, glm::vec2 maxPoint, uint32_t col, bool filled = true)
@@ -292,32 +234,8 @@ namespace ImGuiUtils
     }
     struct FrameData
     {
-      /*void BuildPriorityTasks(size_t maxPriorityTasksCount)
-      {
-        priorityTaskIndices.clear();
-        std::set<std::string> usedTaskNames;
-
-        for (size_t priorityIndex = 0; priorityIndex < maxPriorityTasksCount; priorityIndex++)
-        {
-          size_t bestTaskIndex = size_t(-1);
-          for (size_t taskIndex = 0; taskIndex < tasks.size(); taskIndex++)
-          {
-            auto &task = tasks[taskIndex];
-            auto it = usedTaskNames.find(tasks[taskIndex].name);
-            if (it == usedTaskNames.end() && (bestTaskIndex == size_t(-1) || tasks[bestTaskIndex].GetLength() < task.GetLength()))
-            {
-              bestTaskIndex = taskIndex;
-            }
-          }
-          if (bestTaskIndex == size_t(-1))
-            break;
-          priorityTaskIndices.push_back(bestTaskIndex);
-          usedTaskNames.insert(tasks[bestTaskIndex].name);
-        }
-      }*/
       std::vector<legit::ProfilerTask> tasks;
       std::vector<size_t> taskStatsIndex;
-      //std::vector<size_t> priorityTaskIndices;
     };
 
     struct TaskStats
@@ -329,12 +247,6 @@ namespace ImGuiUtils
     std::vector<TaskStats> taskStats;
     std::map<std::string, size_t> taskNameToStatsIndex;
 
-    /*struct PriorityTask
-    {
-      size_t frameIndex;
-      size_t taskIndex;
-    };
-    std::vector<PriorityTask> priorityTasks;*/
     std::vector<FrameData> frames;
     size_t currFrameIndex = 0;
   };
@@ -425,4 +337,3 @@ namespace ImGuiUtils
     float maxFrameTime;
   };
 }
-
